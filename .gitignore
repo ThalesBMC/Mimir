@@ -1,0 +1,21 @@
+# Xcode
+.DS_Store
+.build/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# Build products
+DerivedData/
+*.app
+*.dSYM.zip
+*.dSYM
