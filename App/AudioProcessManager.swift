@@ -10,6 +10,7 @@ import Darwin
 class AudioProcessManager: ObservableObject {
     @Published var audioApps: [AudioApp] = []
     @Published var hiddenApps: Set<String> = []  // Bundle IDs or names of hidden apps
+    @Published var unhiddenApps: Set<String> = []  // Apps explicitly unhidden by user (overrides defaultHiddenApps)
     @Published var showHiddenApps = false  // Toggle to show hidden apps
     @Published var isMonitoring = false
     
@@ -37,6 +38,8 @@ class AudioProcessManager: ObservableObject {
         "com.apple.audio.coreaudiod",
         "coreaudiod",
         "com.apple.hidd",
+        "com.apple.corespeech",
+        "CoreSpeech",
         "Mimir",           // Hide ourselves (New Name)
         "SoundManager",    // Hide ourselves (Old Name)
         "com.soundmanager.app"
@@ -65,6 +68,7 @@ class AudioProcessManager: ObservableObject {
     ]
     
     private let hiddenAppsKey = "SoundManager.HiddenApps"
+    private let unhiddenAppsKey = "SoundManager.UnhiddenApps"
     
     init() {
         tapManager = AudioTapManagerFactory.create()
@@ -201,6 +205,17 @@ class AudioProcessManager: ObservableObject {
             // Load persisted settings
             let volume = volumeState.loadSavedVolume(for: mainPid, identifier: groupKey) ?? 1.0
             let muted = volumeState.loadSavedMute(for: mainPid, identifier: groupKey) ?? false
+            
+            // Apply saved settings to tap manager if they differ from defaults
+            // This ensures audio state is restored when app relaunches
+            if volume != 1.0 || muted {
+                for pid in allPids {
+                    tapManager?.setVolume(for: pid, volume: volume)
+                    if muted {
+                        tapManager?.setMute(for: pid, muted: true)
+                    }
+                }
+            }
             
             // Identify additional PIDs
             let additional = allPids.subtracting([mainPid])
@@ -358,6 +373,19 @@ class AudioProcessManager: ObservableObject {
     
     /// Check if an app should be hidden
     func isAppHidden(_ app: AudioApp) -> Bool {
+        let identifier = app.bundleIdentifier ?? app.name
+        
+        // Check if explicitly unhidden by user (overrides default hidden)
+        if unhiddenApps.contains(identifier) {
+            return false
+        }
+        if let bundleID = app.bundleIdentifier, unhiddenApps.contains(bundleID) {
+            return false
+        }
+        if unhiddenApps.contains(app.name) {
+            return false
+        }
+        
         // Check if manually hidden by user
         if let bundleID = app.bundleIdentifier, hiddenApps.contains(bundleID) {
             return true
@@ -381,15 +409,27 @@ class AudioProcessManager: ObservableObject {
     func hideApp(_ app: AudioApp) {
         let identifier = app.bundleIdentifier ?? app.name
         hiddenApps.insert(identifier)
+        // Remove from unhidden list if present
+        unhiddenApps.remove(identifier)
+        if let bundleID = app.bundleIdentifier {
+            unhiddenApps.remove(bundleID)
+        }
+        unhiddenApps.remove(app.name)
         saveHiddenApps()
     }
     
     /// Unhide an app
     func unhideApp(_ app: AudioApp) {
+        let identifier = app.bundleIdentifier ?? app.name
+        
+        // Remove from hidden list
         if let bundleID = app.bundleIdentifier {
             hiddenApps.remove(bundleID)
         }
         hiddenApps.remove(app.name)
+        
+        // Add to unhidden list (to override defaultHiddenApps)
+        unhiddenApps.insert(identifier)
         saveHiddenApps()
     }
     
@@ -398,7 +438,17 @@ class AudioProcessManager: ObservableObject {
         if let bundleID = app.bundleIdentifier, hiddenApps.contains(bundleID) {
             return true
         }
-        return hiddenApps.contains(app.name)
+        if hiddenApps.contains(app.name) {
+            return true
+        }
+        // Also consider default hidden apps as "unhideable"
+        if let bundleID = app.bundleIdentifier, defaultHiddenApps.contains(bundleID) {
+            return true
+        }
+        if defaultHiddenApps.contains(app.name) {
+            return true
+        }
+        return false
     }
     
     /// Load hidden apps from UserDefaults
@@ -406,11 +456,15 @@ class AudioProcessManager: ObservableObject {
         if let saved = UserDefaults.standard.array(forKey: hiddenAppsKey) as? [String] {
             hiddenApps = Set(saved)
         }
+        if let saved = UserDefaults.standard.array(forKey: unhiddenAppsKey) as? [String] {
+            unhiddenApps = Set(saved)
+        }
     }
     
     /// Save hidden apps to UserDefaults
     private func saveHiddenApps() {
         UserDefaults.standard.set(Array(hiddenApps), forKey: hiddenAppsKey)
+        UserDefaults.standard.set(Array(unhiddenApps), forKey: unhiddenAppsKey)
     }
 }
 

@@ -298,17 +298,20 @@ struct ContentView: View {
     
     // MARK: - Hidden Apps List
     private var hiddenAppsList: some View {
-        VStack(spacing: DesignSystem.Spacing.xs) {
-            ForEach(audioManager.hiddenAppsList) { app in
-                HiddenAppRow(app: app) {
-                    withAnimation(DesignSystem.Animation.spring) {
-                        audioManager.unhideApp(app)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: DesignSystem.Spacing.xs) {
+                ForEach(audioManager.hiddenAppsList) { app in
+                    HiddenAppRow(app: app) {
+                        withAnimation(DesignSystem.Animation.spring) {
+                            audioManager.unhideApp(app)
+                        }
                     }
                 }
             }
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.bottom, DesignSystem.Spacing.sm)
         }
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.bottom, DesignSystem.Spacing.sm)
+        .frame(maxHeight: 150)
         .transition(.asymmetric(
             insertion: .push(from: .top).combined(with: .opacity),
             removal: .push(from: .bottom).combined(with: .opacity)
