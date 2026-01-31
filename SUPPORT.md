@@ -12,7 +12,7 @@ For bug reports, feature requests, or technical issues:
 
 ### Email Support
 For general inquiries or support questions:
-- Email: [your-email@example.com]
+- Email: [thalesbmc@gmail.com]
 
 ## Frequently Asked Questions
 
